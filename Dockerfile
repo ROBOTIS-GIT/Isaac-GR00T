@@ -16,6 +16,10 @@ RUN apt update && \
 
 RUN pip install --upgrade pip setuptools
 RUN pip install gpustat wandb==0.19.0
+
+# Install ZMQ for Physical AI Tools integration
+RUN pip install pyzmq>=25.0.0
+
 # Create and set working directory
 WORKDIR /workspace
 # Copy pyproject.toml for dependencies
@@ -39,3 +43,10 @@ RUN pip install accelerate>=0.26.0
 COPY gr00t /workspace/gr00t
 COPY Makefile /workspace/Makefile
 RUN pip3 install -e .
+
+# Make ZMQ inference server executable
+RUN chmod +x /workspace/scripts/zmq_inference_server.py
+
+# Default command: Start ZMQ inference server
+# Can be overridden when running the container
+CMD ["python", "scripts/zmq_inference_server.py", "--port", "5556", "--model_path", "nvidia/GR00T-N1.5-3B"]
