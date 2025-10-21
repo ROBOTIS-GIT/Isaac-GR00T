@@ -94,7 +94,10 @@ def compare_predictions(pred_tensorrt, pred_torch):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run GR00T inference")
     parser.add_argument(
-        "--model_path", type=str, default="nvidia/GR00T-N1.5-3B", help="Path to the GR00T model"
+        "--model_path",
+        type=str,
+        default="/workspace/checkpoints/ROBOTIS/ffw_bg2_rev4_pick_coffee_bottle_env5_1_to_31_joint_fix_20k",
+        help="Path to the GR00T model"
     )
     parser.add_argument(
         "--inference_mode",
@@ -113,18 +116,21 @@ if __name__ == "__main__":
         "--trt_engine_path",
         type=str,
         help="Path to the TensorRT engine",
-        default="gr00t_engine",
+        default="/workspace/checkpoints/ROBOTIS/ffw_bg2_rev4_pick_coffee_bottle_env5_1_to_31_joint_fix_20k_engine",
     )
     args = parser.parse_args()
 
     MODEL_PATH = args.model_path
     REPO_PATH = os.path.dirname(os.path.dirname(gr00t.__file__))
-    DATASET_PATH = os.path.join(REPO_PATH, "demo_data/robot_sim.PickNPlace")
-    EMBODIMENT_TAG = "gr1"
+    DATASET_PATH = os.path.join(
+        REPO_PATH,
+        "/workspace/checkpoints/ffw_bg2_rev4_custom_0924_5"
+    )
+    EMBODIMENT_TAG = "new_embodiment"
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    data_config = DATA_CONFIG_MAP["fourier_gr1_arms_only"]
+    data_config = DATA_CONFIG_MAP["ffw_bg2"]
     modality_config = data_config.modality_config()
     modality_transform = data_config.transform()
 
@@ -150,7 +156,17 @@ if __name__ == "__main__":
     step_data = dataset[0]
 
     if args.inference_mode == "pytorch":
-        predicted_action = policy.get_action(step_data)
+        import time
+        total_time = 0.0
+        for i in range(100):
+            print(f"Running PyTorch inference iteration {i+1}/100")
+            start_time = time.time()
+            predicted_action = policy.get_action(step_data)
+            end_time = time.time()
+            print(f"PyTorch inference completed in {end_time - start_time:.4f} seconds")
+            total_time += end_time - start_time
+        avg_time = total_time / 100
+        print(f"\nAverage PyTorch inference time over 100 iterations: {avg_time:.4f} seconds")
         print("\n=== PyTorch Inference Results ===")
         for key, value in predicted_action.items():
             print(key, value.shape)
@@ -158,11 +174,21 @@ if __name__ == "__main__":
     elif args.inference_mode == "tensorrt":
         # Setup TensorRT engines
         setup_tensorrt_engines(policy, args.trt_engine_path)
-
-        predicted_action = policy.get_action(step_data)
-        print("\n=== TensorRT Inference Results ===")
-        for key, value in predicted_action.items():
-            print(key, value.shape)
+        total_time = 0.0
+        for i in range(100):
+            print(f"Running TensorRT inference iteration {i+1}/100")
+            import time
+            start_time = time.time()
+            print(step_data['video.cam_head'].shape)
+            predicted_action = policy.get_action(step_data)
+            end_time = time.time()
+            print(f"TensorRT inference completed in {end_time - start_time:.4f} seconds")
+            total_time += end_time - start_time
+            print("\n=== TensorRT Inference Results ===")
+            for key, value in predicted_action.items():
+                print(key, value.shape)
+        avg_time = total_time / 100
+        print(f"\nAverage TensorRT inference time over 100 iterations: {avg_time:.4f} seconds")
 
     else:
         # ensure PyTorch and TensorRT have the same init_actions

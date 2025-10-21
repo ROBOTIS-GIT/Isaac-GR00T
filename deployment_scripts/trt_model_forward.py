@@ -17,7 +17,7 @@ import os
 from functools import partial
 
 import torch
-import trt_torch as trt
+import deployment_scripts.trt_torch as trt
 from transformers.feature_extraction_utils import BatchFeature
 
 

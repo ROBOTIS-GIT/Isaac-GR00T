@@ -26,6 +26,8 @@ from gr00t.eval.robot import RobotInferenceClient
 from gr00t.experiment.data_config import load_data_config
 from gr00t.model.policy import BasePolicy, Gr00tPolicy
 from gr00t.utils.eval import calc_mse_for_single_trajectory
+from deployment_scripts.trt_model_forward import setup_tensorrt_engines
+
 
 warnings.simplefilter("ignore", category=FutureWarning)
 
@@ -74,7 +76,7 @@ class ArgsConfig:
     action_horizon: int = None
     """Action horizon to evaluate. If None, will use the data config's action horizon."""
 
-    video_backend: Literal["decord", "torchvision_av", "torchcodec"] = "torchcodec"
+    video_backend: Literal["decord", "torchvision_av", "torchcodec"] = "decord"
     """Video backend to use for various codec options. h264: decord or av: torchvision_av"""
 
     dataset_path: str = "demo_data/robot_sim.PickNPlace/"
@@ -118,6 +120,9 @@ def main(args: ArgsConfig):
             denoising_steps=args.denoising_steps,
             device="cuda" if torch.cuda.is_available() else "cpu",
         )
+        # setup_tensorrt_engines(
+        #     policy,
+        #     '/workspace/checkpoints/ROBOTIS/ffw_bg2_rev4_pick_coffee_bottle_env5_1_to_31_joint_fix_20k_engine')
     else:
         policy: BasePolicy = RobotInferenceClient(host=args.host, port=args.port)
 

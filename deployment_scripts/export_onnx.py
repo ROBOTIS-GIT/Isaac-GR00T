@@ -17,6 +17,7 @@ import argparse
 import os
 from typing import Dict, Optional
 
+import cv2
 import numpy as np
 import torch
 import torch.utils.checkpoint as cp
@@ -393,10 +394,10 @@ def run_groot_inference(
 ) -> Dict[str, float]:
 
     # load the policy
-    data_config = DATA_CONFIG_MAP["fourier_gr1_arms_only"]
+    data_config = DATA_CONFIG_MAP["ffw_bg2"]
     modality_config = data_config.modality_config()
     modality_transform = data_config.transform()
-    EMBODIMENT_TAG = "gr1"
+    EMBODIMENT_TAG = "new_embodiment"
     policy = Gr00tPolicy(
         model_path=model_path,
         embodiment_tag=EMBODIMENT_TAG,
@@ -416,6 +417,8 @@ def run_groot_inference(
     )
 
     step_data = dataset[0]
+    step_data['video.cam_head'] = np.expand_dims(cv2.resize(step_data['video.cam_head'][0], (224, 224)), axis=0)
+
     # get the action
     predicted_action = policy.get_action(step_data)
 
