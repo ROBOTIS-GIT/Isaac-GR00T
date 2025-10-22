@@ -188,7 +188,7 @@ class ZmqInferenceServer:
                     denoising_steps=data.get('denoising_steps', 4),
                 )
                 trt_path = data['policy_path'] + '_engine'
-                # setup_tensorrt_engines(self.policy, trt_path)
+                setup_tensorrt_engines(self.policy, trt_path)
 
                 self.add_callback('get_action', self.policy.get_action)
                 return {
