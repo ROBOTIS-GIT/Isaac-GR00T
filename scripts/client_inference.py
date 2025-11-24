@@ -177,7 +177,7 @@ def test_basic_communication(host='localhost', port=5555):
         policy_info = {
             'policy_type': 'GR00T_N1_5',
             'policy_path': '/workspace/checkpoints/ROBOTIS/gr00t_test',
-            'robot_type': 'ffw_bg2'
+            'robot_type': 'ffw_bg2_rev4'
         }
         response = client.execute_command('load_policy', policy_info)
         print(f"   ✅ Load policy result: {response}")

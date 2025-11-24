@@ -770,7 +770,7 @@ class AgibotGenie1DataConfig(BaseDataConfig):
         return ComposedModalityTransform(transforms=transforms)
 
 ###########################################################################################
-class FfwBg2DataConfig(BaseDataConfig):
+class FfwBg2Rev4DataConfig(BaseDataConfig):
     video_keys = ["video.cam_head"]
     state_keys = ["state.left_arm", "state.right_arm"]
     action_keys = ["action.left_arm", "action.right_arm"]
@@ -827,5 +827,5 @@ DATA_CONFIG_MAP = {
     "unitree_g1_full_body": UnitreeG1FullBodyDataConfig(),
     "oxe_droid": OxeDroidDataConfig(),
     "agibot_genie1": AgibotGenie1DataConfig(),
-    "ffw_bg2": FfwBg2DataConfig(),
+    "ffw_bg2_rev4": FfwBg2Rev4DataConfig(),
 }

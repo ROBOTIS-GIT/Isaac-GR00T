@@ -124,7 +124,7 @@ if __name__ == "__main__":
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    data_config = DATA_CONFIG_MAP["ffw_bg2"]
+    data_config = DATA_CONFIG_MAP["ffw_bg2_rev4"]
     modality_config = data_config.modality_config()
     modality_transform = data_config.transform()
 

@@ -393,7 +393,7 @@ def run_groot_inference(
 ) -> Dict[str, float]:
 
     # load the policy
-    data_config = DATA_CONFIG_MAP["ffw_bg2"]
+    data_config = DATA_CONFIG_MAP["ffw_bg2_rev4"]
     modality_config = data_config.modality_config()
     modality_transform = data_config.transform()
     EMBODIMENT_TAG = "new_embodiment"
