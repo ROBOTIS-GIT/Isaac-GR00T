@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+#
+# Copyright 2025 ROBOTIS
+#
 
 """
 DDS Sensor → GR00T Policy Inference → DDS Command Publisher
-Full Pipeline Runner
+Full Pipeline Runner (minimal patch version, no SDK modifications)
 """
 
 import time
@@ -16,7 +18,7 @@ from gr00t.model.policy import Gr00tPolicy
 
 
 # ==============================================================
-# 1) 하드코딩 설정
+# Hardcoded Settings
 # ==============================================================
 
 POLICY_TYPE = "GR00T_N1_5"
@@ -27,13 +29,10 @@ DENOISING_STEPS = 4
 
 
 # ==============================================================
-# 2) 정책 로드
+# Load GR00T Policy
 # ==============================================================
 
 def load_policy():
-    """
-    DDS 통신 없이 로컬에서 직접 policy를 로딩.
-    """
     print("[Policy] Loading GR00T policy...")
     data_config = load_data_config(ROBOT_TYPE)
 
@@ -49,203 +48,113 @@ def load_policy():
 
 
 # ==============================================================
-# 3) DDS 입력 → GR00T input 변환
+# Convert DDS Input → GR00T Input
 # ==============================================================
+
 def build_gr00t_input(rds: RobotisDDSSDK):
 
-    # ---------------------------------------------------
-    # Helper: 이미지 → (1,H,W,C)
-    # ---------------------------------------------------
-    def to_4d_or_5d(x, name=""):
-        rds._debug_image(x, name)
+    def to_4d(x):
         if x is None:
             return None
-
         x = np.asarray(x)
-
-        # 3D → 4D
         if x.ndim == 3:
-            out = x[None, ...]
-            rds._debug_image(out, name + "_to4d")
-            return out
-
-        # 4D는 그대로
+            return x[None, ...]
         if x.ndim == 4:
             return x
-
-        print(f"[ERROR] {name}: Invalid ndim = {x.ndim}")
+        print(f"[ERROR] Invalid image ndim={x.ndim}")
         return None
 
-    # ---------------------------------------------------
-    # Camera Inputs
-    # ---------------------------------------------------
-    head  = to_4d_or_5d(rds.get_zed_left_image(),  "cam_head")
-    left  = to_4d_or_5d(rds.get_left_image(),      "cam_left")
-    right = to_4d_or_5d(rds.get_right_image(),     "cam_right")
-
-    # head는 반드시 있어야 GR00T가 돌아감
+    # Camera
+    head = to_4d(rds.get_zed_left_image())
     if head is None:
-        print("[ERROR] cam_head is None → cannot run inference")
+        print("[ERROR] Missing cam_head → pause inference")
         return None
+
+    left  = to_4d(rds.get_left_image())
+    right = to_4d(rds.get_right_image())
 
     data = {"video.cam_head": head}
-    if left is not None:  data["video.cam_left"]  = left
-    if right is not None: data["video.cam_right"] = right
+    if left is not None:
+        data["video.cam_left"] = left
+    if right is not None:
+        data["video.cam_right"] = right
 
-    # ---------------------------------------------------
-    # Odom state (없으면 기본값)
-    # ---------------------------------------------------
+    # Odometry
     odom = rds.get_odometry()
-    rds._debug_image(odom, "odom")
-
     if odom is None:
-        print("[WARN] odom 없음 → default zero odom 사용")
-        data["state.robot"] = np.zeros((1, 5), dtype=np.float32)
-    else:
-        state_vec = np.array([
-            odom["x"], odom["y"], odom["theta"],
-            odom["linear_vel"], odom["angular_vel"]
-        ], dtype=np.float32)
-        data["state.robot"] = state_vec[None, :]
-        rds._debug_image(state_vec, "state.robot")
+        print("[ERROR] Missing odometry → pause inference")
+        return None
 
-    # ---------------------------------------------------
-    # Joint State (필수 입력)
-    # ---------------------------------------------------
+    state_vec = np.array([
+        odom["x"], odom["y"], odom["theta"],
+        odom["linear_vel"], odom["angular_vel"]
+    ], dtype=np.float32)
+    data["state.robot"] = state_vec[None, :]
+
+    # Joint State
     joint = rds.get_joint_state()
-    rds._debug_image(joint, "joint_state_dict")
-
     if joint is None:
-        print("[WARN] joint_state 없음 → default zero joints 사용")
-        positions = np.zeros((25,), dtype=np.float32)
-    else:
-        positions = np.array(joint["position"], dtype=np.float32)  # shape (25,)
+        print("[ERROR] Missing joint_state → pause inference")
+        return None
 
-    # full joint state: (1, 25)
+    positions = np.array(joint["position"], dtype=np.float32)
     data["state.joints"] = positions[None, :]
-    rds._debug_image(data["state.joints"], "state.joints")
 
-    # ---------------------------------------------------
-    # Left/Right arm (앞 7개 + pad 1)
-    # ---------------------------------------------------
-    # 왼팔 joint 7개
-    left7 = positions[0:7]   # (7,)
-    # 오른팔 joint 7개
-    right7 = positions[7:14] # (7,)
+    # Arms
+    left7  = positions[0:7]
+    right7 = positions[7:14]
 
-    # GR00T 요구: 8차원 → pad 1개 추가
     left8  = np.concatenate([left7,  np.array([0.0], dtype=np.float32)])
     right8 = np.concatenate([right7, np.array([0.0], dtype=np.float32)])
 
-    data["state.left_arm"]  = left8[None, :]   # (1, 8)
-    data["state.right_arm"] = right8[None, :]  # (1, 8)
+    data["state.left_arm"]  = left8[None, :]
+    data["state.right_arm"] = right8[None, :]
 
-    rds._debug_image(data["state.left_arm"],  "state.left_arm")
-    rds._debug_image(data["state.right_arm"], "state.right_arm")
-
-    # ---------------------------------------------------
-    # 최종 클린업 (numpy만 허용)
-    # ---------------------------------------------------
-    clean = {}
-    for k, v in data.items():
-        if isinstance(v, np.ndarray):
-            clean[k] = v
-        else:
-            print(f"[SKIP] {k} removed (non-numpy)")
-
-    return clean
+    return data
 
 
 # ==============================================================
-# 4) GR00T 액션 → DDS 로봇 제어로 변환 & 실행
+# Apply GR00T Action → DDS Command
 # ==============================================================
 
 def apply_action_to_robot(action, rds: RobotisDDSSDK):
-    """
-    action: policy.get_action() 결과 (dict 또는 numpy)
-    → 적절히 변환해서 DDS publish
-    """
-
-    print("\n================ APPLY ACTION DEBUG ================")
-
-    # ---------------------------------------------------
-    # 1) action type / keys / shapes 출력
-    # ---------------------------------------------------
-    print(f"[DEBUG] action type: {type(action)}")
 
     if isinstance(action, dict):
-        print(f"[DEBUG] action keys: {list(action.keys())}")
+        print("\n[ACTION DEBUG]")
+        print(" - keys:", list(action.keys()))
 
-        # 각 키에 대해 shape/값 로그 출력
-        for k, v in action.items():
-            if isinstance(v, np.ndarray):
-                print(f"[DEBUG] {k}: shape={v.shape}, dtype={v.dtype}")
-                print(f"[DEBUG] {k} sample (first row): {v[0] if v.ndim>1 else v[:8]}")
-            else:
-                print(f"[DEBUG] {k}: {v}")
-
-    elif isinstance(action, np.ndarray):
-        print(f"[DEBUG] ndarray action shape={action.shape}, dtype={action.dtype}")
-        print(f"[DEBUG] action[:8] = {action[:8]}")
-    else:
-        print(f"[WARN] Unknown action format: {action}")
-        return
-
-    print("====================================================\n")
-
-    # ---------------------------------------------------
-    # 실제 로봇 제어 로직
-    # ---------------------------------------------------
-
-    # GR00T 구조에 맞는 dictionary일 경우
-    if isinstance(action, dict):
-
-        # -------------------------
-        # LEFT ARM
-        # -------------------------
         if "action.left_arm" in action:
-            left_arm = action["action.left_arm"]
-            if isinstance(left_arm, np.ndarray):
-                # GR00T는 (T, 8)의 trajectory를 반환 → 첫번째 스텝 사용
-                target = left_arm[0]
-                print(f"[APPLY] LEFT ARM target[0]: {target}")
-                rds.send_joint_trajectory(list(target))  # 필요 시 로봇 포맷에 맞게 변환
-
-        # -------------------------
-        # RIGHT ARM
-        # -------------------------
+            print(" - left_arm[0]:", action["action.left_arm"][0])
         if "action.right_arm" in action:
-            right_arm = action["action.right_arm"]
-            if isinstance(right_arm, np.ndarray):
-                target = right_arm[0]
-                print(f"[APPLY] RIGHT ARM target[0]: {target}")
-                # 예: 양팔을 하나로 합쳐 publish할 수도 있음
-                # rds.send_joint_trajectory(list(target))
+            print(" - right_arm[0]:", action["action.right_arm"][0])
+        if "cmd_vel" in action:
+            print(" - cmd_vel:", action["cmd_vel"])
 
-        # -------------------------
-        # optional: cmd_vel
-        # -------------------------
+    if isinstance(action, dict):
+        # arm
+        if "action.left_arm" in action and "action.right_arm" in action:
+            left  = action["action.left_arm"][0]
+            right = action["action.right_arm"][0]
+
+            full = np.concatenate([left, right], axis=0)
+            print("[APPLY] 16-DOF Arm Trajectory:", full)
+            rds.send_joint_trajectory(list(full))
+
+        # base
         if "cmd_vel" in action:
             vx, wz = action["cmd_vel"]
-            print(f"[APPLY] cmd_vel: vx={vx}, wz={wz}")
             rds.send_cmd_vel(vx, wz)
 
         return
 
-    # ---------------------------------------------------
-    # numpy array type action
-    # ---------------------------------------------------
-    elif isinstance(action, np.ndarray):
-        # 아주 단순히 vx/wz로 매핑하는 예시
+    if isinstance(action, np.ndarray):
         vx = float(action[0])
         wz = float(action[1])
-        print(f"[APPLY] ndarray action mapped to cmd_vel: vx={vx}, wz={wz}")
         rds.send_cmd_vel(vx, wz)
 
 
-
 # ==============================================================
-# 5) 메인 루프 클래스
+# Main Runner Loop
 # ==============================================================
 
 class DdsGr00tInferenceRunner:
@@ -256,40 +165,90 @@ class DdsGr00tInferenceRunner:
         print("[Runner] Loading policy...")
         self.policy = load_policy()
 
+        # Track previous sensor values
+        self.prev_img = None
+        self.prev_odom = None
+        self.prev_joint = None
+
         self.running = True
         print("[Runner] Ready.")
 
     def run(self):
         print("\n==============================")
-        print("  GR00T DDS Inference Runner")
+        print("    GR00T DDS Inference Runner")
         print("==============================\n")
 
         while self.running:
 
-            # 1) DDS → GR00T 입력 구성
-            data = build_gr00t_input(self.rds)
-            if data is None:
-                time.sleep(0.01)
+            # -------------------------------------------------
+            # 1) Read sensors
+            # -------------------------------------------------
+            img   = self.rds.get_zed_left_image()
+            odom  = self.rds.get_odometry()
+            joint = self.rds.get_joint_state()
+
+            # -------------------------------------------------
+            # 2) Check if fresh (changed) data exists
+            # -------------------------------------------------
+            # Camera
+            if img is None:
+                print("[Runner] No camera → waiting...")
+                time.sleep(0.1)
+                continue
+            if self.prev_img is not None and np.array_equal(img, self.prev_img):
+                print("[Runner] Camera not updating → waiting...")
+                time.sleep(0.1)
                 continue
 
-            # 🔥 여기서 찍어야 함!!!
-            for k, v in data.items():
-                print(f"[DEBUG] {k} shape:", np.array(v).shape)
+            # Odometry
+            if odom is None:
+                print("[Runner] No odometry → waiting...")
+                time.sleep(0.1)
+                continue
+            if self.prev_odom is not None and odom == self.prev_odom:
+                print("[Runner] Odometry not updating → waiting...")
+                time.sleep(0.1)
+                continue
 
+            # Joint states
+            if joint is None:
+                print("[Runner] No joint_state → waiting...")
+                time.sleep(0.1)
+                continue
+            if self.prev_joint is not None and joint["position"] == self.prev_joint:
+                print("[Runner] joint_state not updating → waiting...")
+                time.sleep(0.1)
+                continue
 
-            # 2) inference
+            # -------------------------------------------------
+            # 3) Build model input
+            # -------------------------------------------------
+            data = build_gr00t_input(self.rds)
+            if data is None:
+                time.sleep(0.05)
+                continue
+
+            # -------------------------------------------------
+            # 4) Inference
+            # -------------------------------------------------
             with torch.no_grad():
                 action = self.policy.get_action(data)
 
-            # 3) 로그 출력
-            print("[Inference] action:", action)
-
-            # 4) GR00T action → DDS publish
+            # -------------------------------------------------
+            # 5) Apply to robot
+            # -------------------------------------------------
             apply_action_to_robot(action, self.rds)
+
+            # -------------------------------------------------
+            # 6) Save current sensor values
+            # -------------------------------------------------
+            self.prev_img = img
+            self.prev_odom = odom
+            self.prev_joint = joint["position"]
 
 
 # ==============================================================
-# 6) 엔트리 포인트
+# Entry Point
 # ==============================================================
 
 def main():
