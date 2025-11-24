@@ -17,7 +17,6 @@ import argparse
 import os
 from typing import Dict, Optional
 
-import cv2
 import numpy as np
 import torch
 import torch.utils.checkpoint as cp
@@ -417,6 +416,8 @@ def run_groot_inference(
     )
 
     step_data = dataset[0]
+    print(step_data['video.cam_head'].shape)
+    import cv2
     step_data['video.cam_head'] = np.expand_dims(cv2.resize(step_data['video.cam_head'][0], (224, 224)), axis=0)
 
     # get the action

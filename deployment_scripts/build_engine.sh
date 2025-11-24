@@ -22,7 +22,6 @@ echo "If your inference batch size exceeds 8 or the MIN_LEN/OPT_LEN/MAX_LEN for 
 export PATH=/usr/src/tensorrt/bin:$PATH
 
 # Define length variables
-# Set minimum, optimum, and maximum number of tokens
 MIN_LEN=80
 OPT_LEN=256
 MAX_LEN=512
@@ -33,7 +32,6 @@ else
     echo "The file /usr/src/tensorrt/bin/trtexec does not exist. Please install tensorrt"
 fi
 
-# Create engine directory
 mkdir -p /workspace/checkpoints/ROBOTIS/ffw_bg2_rev4_pick_coffee_bottle_env5_1_to_31_joint_fix_20k_engine
 
 # VLLN-VLSelfAttention

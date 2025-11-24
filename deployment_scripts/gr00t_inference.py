@@ -94,10 +94,7 @@ def compare_predictions(pred_tensorrt, pred_torch):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run GR00T inference")
     parser.add_argument(
-        "--model_path",
-        type=str,
-        default="/workspace/checkpoints/ROBOTIS/ffw_bg2_rev4_pick_coffee_bottle_env5_1_to_31_joint_fix_20k",
-        help="Path to the GR00T model"
+        "--model_path", type=str, default="/workspace/checkpoints/ROBOTIS/ffw_bg2_rev4_pick_coffee_bottle_env5_1_to_31_joint_fix_20k", help="Path to the GR00T model"
     )
     parser.add_argument(
         "--inference_mode",
@@ -122,10 +119,7 @@ if __name__ == "__main__":
 
     MODEL_PATH = args.model_path
     REPO_PATH = os.path.dirname(os.path.dirname(gr00t.__file__))
-    DATASET_PATH = os.path.join(
-        REPO_PATH,
-        "/workspace/checkpoints/ffw_bg2_rev4_custom_0924_5"
-    )
+    DATASET_PATH = os.path.join(REPO_PATH, "/workspace/checkpoints/ffw_bg2_rev4_custom_0924_5")
     EMBODIMENT_TAG = "new_embodiment"
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -189,6 +183,9 @@ if __name__ == "__main__":
                 print(key, value.shape)
         avg_time = total_time / 100
         print(f"\nAverage TensorRT inference time over 100 iterations: {avg_time:.4f} seconds")
+            
+
+        
 
     else:
         # ensure PyTorch and TensorRT have the same init_actions

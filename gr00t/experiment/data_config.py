@@ -811,6 +811,7 @@ class FfwBg2DataConfig(BaseDataConfig):
             ),
         ]
         return ComposedModalityTransform(transforms=transforms)
+
 ###########################################################################################
 
 DATA_CONFIG_MAP = {
