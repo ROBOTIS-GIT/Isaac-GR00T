@@ -122,4 +122,12 @@ playground/
 demo_data/gr00t-gr1-apple-to-shelf/
 tmp/
 output/
-checkpoints
+*.png
+*.json
+*.safetensors
+*.parquet
+*.mp4
+*.gitattributes
+*.engine
+*.jsonl
+*.onnx
