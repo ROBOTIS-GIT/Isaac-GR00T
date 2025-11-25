@@ -35,7 +35,6 @@ CAMERA_CONFIG = CFG.get("camera_topics", {})
 ARM_CONFIG = CFG.get("arm_publishers", {})
 
 CAMERA_KEYS = list(CAMERA_CONFIG.keys())
-ARM_KEYS = list(ARM_CONFIG.keys())
 
 
 # ==============================================================
@@ -74,7 +73,7 @@ def build_gr00t_input(imgs, odom, joint):
 
     data = {}
 
-    # Add camera images
+    # Camera images
     for key, img in imgs.items():
         img4d = to_4d(img)
         if img4d is not None:
@@ -91,7 +90,7 @@ def build_gr00t_input(imgs, odom, joint):
     pos = np.array(joint["position"], dtype=np.float32)
     data["state.joints"] = pos[None]
 
-    # Map to GR00T arm states
+    # GR00T arms
     left7 = pos[0:7]
     right7 = pos[7:14]
 
@@ -102,39 +101,31 @@ def build_gr00t_input(imgs, odom, joint):
 
 
 # ==============================================================
-# Apply GR00T Action → DDS Commands (LEFT/RIGHT SEPARATE)
+# Apply GR00T Action → DDS Commands (LEFT/RIGHT)
 # ==============================================================
 
 def apply_action_to_robot(action, rds):
     if not isinstance(action, dict):
         return
 
-    left = None
-    right = None
+    left = action.get("action.left_arm")
+    right = action.get("action.right_arm")
 
-    # Extract arms first
-    if "action.left_arm" in action:
-        left = action["action.left_arm"][0]
-
-    if "action.right_arm" in action:
-        right = action["action.right_arm"][0]
-
-    # Pretty combined output
+    # 예쁘게 출력
     if left is not None or right is not None:
-        print("\n[APPLY] Arms:")
+        print("\n================ APPLY ACTION ================")
         if left is not None:
-            print("  LEFT : ", left)
+            print(" LEFT ARM :", left[0])
         if right is not None:
-            print("  RIGHT: ", right)
-        print("")  # 빈 줄로 가독성 확보
+            print(" RIGHT ARM:", right[0])
+        print("==============================================\n")
 
-    # Publish separately
+    # Publish
     if left is not None:
-        rds.send_arm_trajectory("left", list(left))
+        rds.send_arm_trajectory("left", list(left[0]))
 
     if right is not None:
-        rds.send_arm_trajectory("right", list(right))
-
+        rds.send_arm_trajectory("right", list(right[0]))
 
 
 # ==============================================================
@@ -147,25 +138,20 @@ class DdsGr00tInferenceRunner:
         print("[Runner] Initializing DDS SDK...")
         self.rds = RobotisDDSSDK(domain_id=domain_id)
 
-        # -----------------------------------------
-        # Register cameras (from config.json)
-        # -----------------------------------------
+        # Register cameras
         print("[Runner] Registering cameras...")
         for key, info in CAMERA_CONFIG.items():
             topic = info["topic"]
             msg_type = info.get("type", "CompressedImage_")
             self.rds.register_camera(key, topic, msg_type)
 
-        # -----------------------------------------
-        # Register arm publishers (from config.json)
-        # -----------------------------------------
+        # Register arm publishers
         print("[Runner] Registering arm publishers...")
         for arm, topic in ARM_CONFIG.items():
             self.rds.register_arm_publisher(arm, topic)
 
         print("[Runner] Loading GR00T policy...")
         self.policy = load_policy()
-
         self.prev = {}
         print("[Runner] Ready.")
 
@@ -179,9 +165,11 @@ class DdsGr00tInferenceRunner:
             return not np.array_equal(now, prev)
         return now != prev
 
-    # Main loop
-    def run(self):
+    # ==========================================================
+    # Loop
+    # ==========================================================
 
+    def run(self):
         print("\n==============================")
         print("  GR00T DDS Inference Runner")
         print("==============================\n")
@@ -190,33 +178,50 @@ class DdsGr00tInferenceRunner:
 
             imgs = self.rds.get_images(CAMERA_KEYS)
 
+            # Missing camera logs
+            missing_cam = False
+            for k in CAMERA_KEYS:
+                if imgs.get(k) is None:
+                    print(f"[WAIT] Camera '{k}' has NO DATA.")
+                    missing_cam = True
+            if missing_cam:
+                time.sleep(0.02)
+                continue
+
             # Camera freshness
             cam_fresh = True
             for k in CAMERA_KEYS:
                 if not self._fresh(imgs.get(k), self.prev.get(k)):
                     cam_fresh = False
-                    break
-
             if not cam_fresh:
+                print("[WAIT] Camera data stale.")
                 time.sleep(0.02)
                 continue
 
+            # Odometry & joint
             odom = self.rds.get_odometry()
             joint = self.rds.get_joint_state()
 
+            if odom is None:
+                print("[WAIT] NO odometry data.")
+            if joint is None:
+                print("[WAIT] NO joint_state data.")
             if odom is None or joint is None:
                 time.sleep(0.02)
                 continue
 
+            # Freshness check
             if not self._fresh(odom, self.prev.get("odom")):
+                print("[WAIT] Odometry stale.")
                 time.sleep(0.02)
                 continue
 
             if not self._fresh(joint, self.prev.get("joint")):
+                print("[WAIT] Joint state stale.")
                 time.sleep(0.02)
                 continue
 
-            # Build GR00T input
+            # Prepare GR00T input
             data = build_gr00t_input(imgs, odom, joint)
 
             # Inference
@@ -233,7 +238,7 @@ class DdsGr00tInferenceRunner:
 
 
 # ==============================================================
-# Entry Point
+# Entry
 # ==============================================================
 
 def main():
