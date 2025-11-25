@@ -111,7 +111,6 @@ def apply_action_to_robot(action, rds):
     left = action.get("action.left_arm")
     right = action.get("action.right_arm")
 
-    # 예쁘게 출력
     if left is not None or right is not None:
         print("\n================ APPLY ACTION ================")
         if left is not None:
