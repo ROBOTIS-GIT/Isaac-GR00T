@@ -1,0 +1,21 @@
+{
+    "camera_topics": {
+        "cam_head": {
+            "topic": "/zed/zed_node/left/image_rect_color/compressed",
+            "type": "CompressedImage_"
+        },
+        "cam_left": {
+            "topic": "/camera_left/camera_left/color/image_rect_raw/compressed",
+            "type": "CompressedImage_"
+        },
+        "cam_right": {
+            "topic": "/camera_right/camera_right/color/image_rect_raw/compressed",
+            "type": "CompressedImage_"
+        }
+    },
+    "other_sensors": {
+        "odom": "/odom",
+        "joint_states": "/joint_states",
+        "battery": "/battery_state"
+    }
+}
