@@ -17,5 +17,9 @@
         "odom": "/odom",
         "joint_states": "/joint_states",
         "battery": "/battery_state"
+    },
+    "arm_topics": {
+        "left": "/joint_trajectory_left",
+        "right": "/joint_trajectory_right"
     }
 }
