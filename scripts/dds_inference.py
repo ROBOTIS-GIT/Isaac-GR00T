@@ -17,9 +17,16 @@ from gr00t.model.policy import Gr00tPolicy
 
 
 class DdsInference:
-    def __init__(self, domain_id=30):
+    POLICY_PATH = "/workspace/checkpoints/ROBOTIS/ffw_bg2_rev4_pick_coffee_bottle_env5_1_to_34_joint_fix_40k"
+    ROBOT_TYPE = "ffw_bg2"
+    EMBODIMENT_TAG = "new_embodiment"
+    DENOISING_STEPS = 4
+
+    def __init__(self):
         print("[Init] DDS SDK")
-        self.rds = RobotisDDSSDK(domain_id=domain_id, robot_type="ffw_bg2")
+        self.rds = RobotisDDSSDK(
+            domain_id=30,
+            robot_type="ffw_bg2")
         print("[Init] Loading policy")
         self.policy = self.load_policy()
 
@@ -29,19 +36,14 @@ class DdsInference:
         print("[Init] Ready")
         self.run()
 
-    def load_policy(self):
-        POLICY_PATH = "/workspace/checkpoints/ROBOTIS/ffw_bg2_rev4_pick_coffee_bottle_env5_1_to_34_joint_fix_40k"
-        ROBOT_TYPE = "ffw_bg2"
-        EMBODIMENT_TAG = "new_embodiment"
-        DENOISING_STEPS = 4
-
-        cfg = load_data_config(ROBOT_TYPE)
+    def load_policy(self, policy_path=POLICY_PATH, embodiment_tag=EMBODIMENT_TAG, denoising_steps=DENOISING_STEPS, robot_type=ROBOT_TYPE):
+        cfg = load_data_config(robot_type)
         return Gr00tPolicy(
-            model_path=POLICY_PATH,
+            model_path=policy_path,
             modality_config=cfg.modality_config(),
             modality_transform=cfg.transform(),
-            embodiment_tag=EMBODIMENT_TAG,
-            denoising_steps=DENOISING_STEPS,
+            embodiment_tag=embodiment_tag,
+            denoising_steps=denoising_steps,
         )
 
     def _fresh_imgs(self, now, prev):
@@ -75,7 +77,7 @@ class DdsInference:
             return True
         return not np.array_equal(now_pos, prev_pos)
 
-    def preprocess_action_input(self, imgs, joint):
+    def preprocess_input(self, imgs, joint):
         def add_batch(x):
             x = np.asarray(x)
             return x[None] if x.ndim == 3 else x
@@ -103,23 +105,23 @@ class DdsInference:
             missing = [k for k in required if k not in imgs or imgs[k] is None]
             if missing:
                 print(f"[WAIT] Missing cameras: {', '.join(missing)}")
-                time.sleep(0.05)
+                time.sleep(0.1)
                 continue
 
             if joint is None or joint.get("position") is None:
                 print("[WAIT] JointState missing")
-                time.sleep(0.05)
+                time.sleep(0.1)
                 continue
 
             imgs_fresh = self._fresh_imgs(imgs, self.prev_imgs)
             joint_fresh = self._fresh_joint(joint, self.prev_joint)
             if not imgs_fresh and not joint_fresh:
                 print("[WAIT] No new data")
-                time.sleep(0.05)
+                time.sleep(0.1)
                 continue
 
             print("[RUN] Inference")
-            data = self.preprocess_action_input(imgs, joint)
+            data = self.preprocess_input(imgs, joint)
             with torch.no_grad():
                 action = self.policy.get_action(data)
 
@@ -134,7 +136,7 @@ class DdsInference:
 
 
 def main():
-    DdsInference(domain_id=30)
+    DdsInference()
 
 
 if __name__ == "__main__":
