@@ -83,18 +83,29 @@ class DdsInference:
     # Fresh 비교 함수 (조인트)
     # ------------------------------------------------------------
     def _fresh_joint(self, now, prev):
+        # now가 None이면 fresh 아님
         if now is None:
             return False
+        
+        # prev가 None이면 fresh
         if prev is None:
             return True
 
-        now_pos = np.array(now.get("position", []), dtype=np.float32)
-        prev_pos = np.array(prev.get("position", []), dtype=np.float32)
+        now_pos = now.get("position")
+        prev_pos = prev.get("position")
+
+        # 둘 중 하나라도 None이면 fresh
+        if now_pos is None or prev_pos is None:
+            return True
+
+        now_pos = np.array(now_pos, dtype=np.float32)
+        prev_pos = np.array(prev_pos, dtype=np.float32)
 
         if now_pos.shape != prev_pos.shape:
             return True
 
         return not np.array_equal(now_pos, prev_pos)
+
 
     # ------------------------------------------------------------
     # GR00T Input 생성
@@ -125,6 +136,7 @@ class DdsInference:
 
         return data
 
+
     # ------------------------------------------------------------
     # Main Loop
     # ------------------------------------------------------------
@@ -134,11 +146,10 @@ class DdsInference:
         print("==============================\n")
 
         while True:
-            # config.json 기반으로 등록된 카메라 전부를 dict로 가져옴
             imgs = self.rds.get_images()
             joint = self.rds.get_joint_state()
 
-            # ------------- (1) 카메라 모두 반드시 있어야 함 -------------
+            # (1) 모든 카메라 필수
             required_keys = list(self.rds._camera_key_map.keys())
             missing = [k for k in required_keys if k not in imgs or imgs[k] is None]
 
@@ -147,31 +158,28 @@ class DdsInference:
                 time.sleep(0.05)
                 continue
 
-            # ------------- (2) JointState 반드시 필요 -------------
-            if joint is None:
+            # (2) JointState 필수
+            if joint is None or joint.get("position") is None:
                 print("[WAIT] JointState missing → Inference paused")
                 time.sleep(0.05)
                 continue
 
-            # ------------- (3) Fresh-check -------------
+            # (3) Fresh-check
             imgs_fresh = self._fresh_imgs(imgs, self.prev_imgs)
             joint_fresh = self._fresh_joint(joint, self.prev_joint)
 
-            # 둘 다 새 데이터가 아니면 → rosbag 안 들어오는 걸로 보고 그냥 대기
             if not imgs_fresh and not joint_fresh:
                 print("[WAIT] No new data → Inference paused")
                 time.sleep(0.02)
                 continue
 
-            # ------------- (4) Inference 실행 -------------
+            # (4) Inference 실행
             print("[RUN] New data received → Running inference...")
-
             data = self.preprocess_action_input(imgs, joint)
 
             with torch.no_grad():
                 action = self.policy.get_action(data)
 
-            # ------------- (5) Apply action -------------
             left = action.get("action.left_arm")
             right = action.get("action.right_arm")
 
@@ -180,7 +188,7 @@ class DdsInference:
             if right is not None:
                 self.rds.send_arm_trajectory("right", list(right[0]))
 
-            # ------------- (6) Save previous -------------
+            # (5) Save previous
             self.prev_imgs = imgs
             self.prev_joint = joint
 
