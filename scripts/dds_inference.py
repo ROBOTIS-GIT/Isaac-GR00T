@@ -25,7 +25,7 @@ class DdsInference:
     def __init__(self):
         print("[Init] DDS SDK")
         self.rds = RobotisDDSSDK(
-            domain_id=30,
+            domain_id=20,
             robot_type="ffw_bg2")
         print("[Init] Loading policy")
         self.policy = self.load_policy()
@@ -89,10 +89,10 @@ class DdsInference:
 
         pos = np.array(joint["position"], dtype=np.float32)
         data["state.joints"] = pos[None]
-        left7 = pos[0:7]
-        right7 = pos[7:14]
-        data["state.left_arm"] = np.concatenate([left7, [0.0]]).reshape(1, -1)
-        data["state.right_arm"] = np.concatenate([right7, [0.0]]).reshape(1, -1)
+        left7 = pos[0:8]
+        right7 = pos[8:16]
+        data["state.left_arm"] = left7.reshape(1, -1)
+        data["state.right_arm"] = right7.reshape(1, -1)
         return data
 
     def run(self):

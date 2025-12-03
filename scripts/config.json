@@ -15,8 +15,8 @@
             }
         },
         "arm_publishers": {
-            "left": "/joint_trajectory_left",
-            "right": "/joint_trajectory_right"
+            "left": "/leader/joint_trajectory_command_broadcaster_left/joint_trajectory",
+            "right": "/leader/joint_trajectory_command_broadcaster_right/joint_trajectory"
         }
     }
 }
