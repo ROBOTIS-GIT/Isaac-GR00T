@@ -145,12 +145,12 @@ class DdsInference:
                 time.sleep(0.1)
                 continue
 
-            # Only infer when fresh data arrives
+            # Check if ANY data is fresh (카메라 OR 조인트)
             imgs_fresh = self._fresh_imgs(imgs, self.prev_imgs)
             joint_fresh = self._fresh_joint(joint, self.prev_joint)
+            
             if not imgs_fresh and not joint_fresh:
-                print("[WAIT] No new data")
-                time.sleep(0.1)
+                time.sleep(0.01)  # 짧게 대기 (10ms)
                 continue
 
             print("[RUN] Inference")
@@ -162,7 +162,6 @@ class DdsInference:
             left = action.get("action.left_arm")
             right = action.get("action.right_arm")
 
-            # Publish via DDS (topic names from config.json)
             self.rds.send_arm_trajectory("left", list(left[0]))
             self.rds.send_arm_trajectory("right", list(right[0]))
 
