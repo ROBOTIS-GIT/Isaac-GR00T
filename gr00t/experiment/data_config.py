@@ -770,6 +770,7 @@ class AgibotGenie1DataConfig(BaseDataConfig):
         return ComposedModalityTransform(transforms=transforms)
 
 ###########################################################################################
+
 class FfwBg2Rev4DataConfig(BaseDataConfig):
     video_keys = ["video.cam_head"]
     state_keys = ["state.left_arm", "state.right_arm"]
@@ -807,7 +808,51 @@ class FfwBg2Rev4DataConfig(BaseDataConfig):
                 state_horizon=len(self.observation_indices),
                 action_horizon=len(self.action_indices),
                 max_state_dim=64,
-                max_action_dim=32,
+                max_action_dim=64,
+            ),
+        ]
+        return ComposedModalityTransform(transforms=transforms)
+
+###########################################################################################
+
+class FfwBh5Rev4DataConfig(BaseDataConfig):
+    video_keys = ["video.cam_head"]
+    state_keys = ["state.left_arm", "state.right_arm", "state.finger_left", "state.finger_right"]
+    action_keys = ["action.left_arm", "action.right_arm", "action.finger_left", "action.finger_right"]
+    language_keys = ["annotation.human.task_description"]
+    observation_indices = [0]
+    action_indices = list(range(16))
+
+    def transform(self) -> ModalityTransform:
+        transforms = [
+            # video transforms
+            VideoToTensor(apply_to=self.video_keys),
+            VideoResize(apply_to=self.video_keys, height=224, width=224, interpolation="linear"),
+            VideoToNumpy(apply_to=self.video_keys),
+            # state transforms
+            StateActionToTensor(apply_to=self.state_keys),
+            StateActionTransform(
+                apply_to=self.state_keys,
+                normalization_modes={key: "min_max" for key in self.state_keys},
+            ),
+            # action transforms
+            StateActionToTensor(apply_to=self.action_keys),
+            StateActionTransform(
+                apply_to=self.action_keys,
+                normalization_modes={key: "min_max" for key in self.action_keys},
+            ),
+            # concat transforms
+            ConcatTransform(
+                video_concat_order=self.video_keys,
+                state_concat_order=self.state_keys,
+                action_concat_order=self.action_keys,
+            ),
+            # model-specific transform
+            GR00TTransform(
+                state_horizon=len(self.observation_indices),
+                action_horizon=len(self.action_indices),
+                max_state_dim=64,
+                max_action_dim=64,
             ),
         ]
         return ComposedModalityTransform(transforms=transforms)
@@ -828,4 +873,5 @@ DATA_CONFIG_MAP = {
     "oxe_droid": OxeDroidDataConfig(),
     "agibot_genie1": AgibotGenie1DataConfig(),
     "ffw_bg2_rev4": FfwBg2Rev4DataConfig(),
+    "ffw_bh5_rev4": FfwBh5Rev4DataConfig(),
 }
