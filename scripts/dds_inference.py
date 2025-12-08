@@ -61,7 +61,7 @@ class DdsInference:
             denoising_steps=denoising_steps,
         )
 
-    def _fresh_imgs(self, now, prev):
+    def check_fresh_imgs(self, now, prev):
         """Check if new camera frames arrived"""
         if not now:
             return False
@@ -79,7 +79,7 @@ class DdsInference:
                 return True
         return False
 
-    def _fresh_joint(self, now, prev):
+    def check_fresh_joint(self, now, prev):
         """Check if joint_state changed"""
         if now is None:
             return False
@@ -115,10 +115,10 @@ class DdsInference:
         data["state.joints"] = pos[None]
 
         # ffw_bg2: first 8 = left arm, next 8 = right arm
-        left7 = pos[0:8]
-        right7 = pos[8:16]
-        data["state.left_arm"] = left7.reshape(1, -1)
-        data["state.right_arm"] = right7.reshape(1, -1)
+        left_arm_state = pos[0:8]
+        right_arm_state = pos[8:16]
+        data["state.left_arm"] = left_arm_state.reshape(1, -1)
+        data["state.right_arm"] = right_arm_state.reshape(1, -1)
 
         return data
 
@@ -144,8 +144,8 @@ class DdsInference:
                 continue
 
             # Check if ANY data is fresh
-            imgs_fresh = self._fresh_imgs(imgs, self.prev_imgs)
-            joint_fresh = self._fresh_joint(joint, self.prev_joint)
+            imgs_fresh = self.check_fresh_imgs(imgs, self.prev_imgs)
+            joint_fresh = self.check_fresh_joint(joint, self.prev_joint)
             
             if not imgs_fresh and not joint_fresh:
                 time.sleep(0.01)
@@ -157,12 +157,11 @@ class DdsInference:
             with torch.no_grad():
                 action = self.policy.get_action(data)
 
-            left = action.get("action.left_arm")
-            right = action.get("action.right_arm")
+            left_arm_action = action.get("action.left_arm")
+            right_arm_action = action.get("action.right_arm")
 
-            self.rds.send_arm_trajectory("left", list(left[0]))
-            self.rds.send_arm_trajectory("right", list(right[0]))
-
+            self.rds.send_arm_trajectory("left", list(left_arm_action[0]))
+            self.rds.send_arm_trajectory("right", list(right_arm_action[0]))
             # Store previous cycle data
             self.prev_imgs = imgs
             self.prev_joint = joint
