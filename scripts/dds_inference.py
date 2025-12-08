@@ -22,8 +22,6 @@ from gr00t.model.policy import Gr00tPolicy
 class DdsInference:
     # Path to trained GR00T checkpoint
     POLICY_PATH = "/workspace/checkpoints/ROBOTIS/ffw_bg2_rev4_pick_coffee_bottle_env5_1_to_34_joint_fix_40k"
-
-    # Robot metadata (must match the directory name used in config.json)
     ROBOT_TYPE = "ffw_bg2"
     EMBODIMENT_TAG = "new_embodiment"
     DENOISING_STEPS = 4
@@ -145,12 +143,12 @@ class DdsInference:
                 time.sleep(0.1)
                 continue
 
-            # Check if ANY data is fresh (카메라 OR 조인트)
+            # Check if ANY data is fresh
             imgs_fresh = self._fresh_imgs(imgs, self.prev_imgs)
             joint_fresh = self._fresh_joint(joint, self.prev_joint)
             
             if not imgs_fresh and not joint_fresh:
-                time.sleep(0.01)  # 짧게 대기 (10ms)
+                time.sleep(0.01)
                 continue
 
             print("[RUN] Inference")
