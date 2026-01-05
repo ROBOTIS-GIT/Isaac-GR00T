@@ -65,3 +65,13 @@ RUN git clone https://git.ffmpeg.org/ffmpeg.git && \
 
 # Set decord library path environment variable
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/root/.local/decord/
+
+# Build and install pytorch3d V0.7.8 from source
+# Install build dependencies first
+RUN pip3 install fvcore iopath && \
+    git clone https://github.com/facebookresearch/pytorch3d.git && \
+    cd pytorch3d && \
+    git checkout V0.7.8 && \
+    FORCE_CUDA=1 TORCH_CUDA_ARCH_LIST="8.7" pip3 install --no-build-isolation . && \
+    cd .. && \
+    rm -rf pytorch3d
